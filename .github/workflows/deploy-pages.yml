@@ -1,6 +1,9 @@
 name: Deploy PWA to GitHub Pages
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -10,15 +13,16 @@ permissions: {}
 
 env:
   CI: true
+  VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+  VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
 concurrency:
-  group: pages
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     name: Verify and build
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -32,6 +36,7 @@ jobs:
           persist-credentials: false
 
       - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v6
 
       - name: Set up Node.js LTS
@@ -44,6 +49,29 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Verify public Supabase configuration
+        shell: bash
+        run: |
+          if [[ -z "${VITE_SUPABASE_URL:-}" || -z "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" ]]; then
+            echo "Repository variables VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are required."
+            exit 1
+          fi
+          if [[ "$VITE_SUPABASE_URL" != https://* ]]; then
+            echo "VITE_SUPABASE_URL must use HTTPS."
+            exit 1
+          fi
+          if [[ "$VITE_SUPABASE_URL" == *"replace_me"* || "$VITE_SUPABASE_PUBLISHABLE_KEY" == *"replace_me"* ]]; then
+            echo "Supabase repository variables still contain placeholder values."
+            exit 1
+          fi
+          if [[ "$VITE_SUPABASE_PUBLISHABLE_KEY" == sb_secret_* || "$VITE_SUPABASE_PUBLISHABLE_KEY" == sbp_* ]]; then
+            echo "A Supabase server secret cannot be exposed through a VITE_ variable."
+            exit 1
+          fi
+
+      - name: Scan repository for committed secrets
+        run: node scripts/scan-release.mjs --source .
+
       - name: Lint
         run: npm run lint
 
@@ -55,6 +83,9 @@ jobs:
 
       - name: Build production PWA
         run: npm run build
+
+      - name: Scan production bundle for secrets and local endpoints
+        run: node scripts/scan-release.mjs --release dist
 
       - name: Verify release artifact
         shell: bash
@@ -69,6 +100,7 @@ jobs:
           ! grep -Fq "const BUILD_ASSETS = []" dist/sw.js
 
       - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v5
         with:
           path: ./dist
@@ -76,6 +108,7 @@ jobs:
   deploy:
     name: Deploy
     needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
