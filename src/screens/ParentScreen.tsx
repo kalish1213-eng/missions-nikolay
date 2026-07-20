@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { verifyPin } from '../lib/security'
 import type { AppState, Task, ThemePreference } from '../types'
 import { Icon } from '../components/Icon'
@@ -16,18 +16,20 @@ interface ParentActions {
   changePin: (pin: string) => Promise<void>
 }
 
-export function ParentScreen({ state, unlocked, onUnlock, onLock, actions }: {
+export function ParentScreen({ state, unlocked, onUnlock, onLock, actions, cloudTools, pinRecovery }: {
   state: AppState
   unlocked: boolean
   onUnlock: () => void
   onLock: () => void
   actions: ParentActions
+  cloudTools?: ReactNode
+  pinRecovery?: ReactNode
 }) {
-  if (!unlocked) return <PinGate pinHash={state.settings.pinHash} pinSalt={state.settings.pinSalt} onUnlock={onUnlock} />
-  return <ParentDashboard state={state} actions={actions} onLock={onLock} />
+  if (!unlocked) return <PinGate pinHash={state.settings.pinHash} pinSalt={state.settings.pinSalt} onUnlock={onUnlock} recovery={pinRecovery} />
+  return <ParentDashboard state={state} actions={actions} onLock={onLock} cloudTools={cloudTools} />
 }
 
-function PinGate({ pinHash, pinSalt, onUnlock }: { pinHash: string; pinSalt: string; onUnlock: () => void }) {
+function PinGate({ pinHash, pinSalt, onUnlock, recovery }: { pinHash: string; pinSalt: string; onUnlock: () => void; recovery?: ReactNode }) {
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
@@ -81,6 +83,7 @@ function PinGate({ pinHash, pinSalt, onUnlock }: { pinHash: string; pinSalt: str
           {error && <p className="formError" id="pin-error" role="alert">{error}</p>}
           <button type="submit" className="button button--primary" disabled={checking || pin.length !== 4}>{checking ? 'Проверяем…' : 'Войти'}</button>
         </form>
+        {recovery}
         <p className="securityNote"><Icon name="lock" />PIN защищает настройки на этом устройстве, но не заменяет системный родительский контроль.</p>
       </section>
     </main>
@@ -94,7 +97,7 @@ function formatSubmittedAt(value?: number): string {
   return value ? `Отправлено в ${submittedTime.format(value)}` : 'Время отправки не записано'
 }
 
-function ParentDashboard({ state, actions, onLock }: { state: AppState; actions: ParentActions; onLock: () => void }) {
+function ParentDashboard({ state, actions, onLock, cloudTools }: { state: AppState; actions: ParentActions; onLock: () => void; cloudTools?: ReactNode }) {
   const pending = state.tasks.filter((task) => state.today.taskStates[task.id]?.status === 'pending')
   const approved = state.tasks.filter((task) => state.today.taskStates[task.id]?.status === 'approved')
   const [xpRate, setXpRate] = useState(String(state.settings.xpToMinutes))
@@ -295,6 +298,8 @@ function ParentDashboard({ state, actions, onLock }: { state: AppState; actions:
           <button type="button" className="button button--dangerGhost" onClick={() => setResetOpen(true)}>Сбросить сегодняшний день</button>
         </details>
       </section>
+
+      {cloudTools}
 
       <p className="sessionNote"><Icon name="lock" />Режим закроется при уходе с экрана или через 5 минут бездействия.</p>
       <button type="button" className="button button--lockMode" onClick={onLock}><Icon name="lock" />Выйти из родительского режима</button>

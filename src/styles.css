@@ -370,6 +370,49 @@ summary small { margin-left: auto; color: var(--muted); font-size: .6rem; }
 .impactList { display: grid; gap: 8px; margin: -5px 0 17px; padding-left: 21px; color: var(--text); font-size: .72rem; line-height: 1.4; }
 .modalNote { margin: -5px 0 16px !important; padding: 10px; border-radius: 11px; background: var(--orange-soft); font-size: .68rem !important; }
 
+/* Cloud portals, session state and device setup */
+.cloudLanding { padding-bottom: calc(42px + env(safe-area-inset-bottom)); background: radial-gradient(circle at 85% 5%, rgba(111, 88, 239, .2), transparent 35%), var(--bg); }
+.cloudLanding__hero { padding: 38px 5px 24px; }
+.cloudLanding__hero h1 { margin: 7px 0 10px; font-size: clamp(2.05rem, 11vw, 3.1rem); line-height: .98; }
+.cloudLanding__hero p { max-width: 440px; margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
+.cloudLanding__grid { display: grid; gap: 13px; }
+.cloudPortalCard { position: relative; overflow: hidden; padding: 21px; border: 1px solid var(--border); border-radius: 25px; background: var(--surface); box-shadow: var(--shadow-small); }
+.cloudPortalCard::after { content: ''; position: absolute; width: 120px; height: 120px; right: -45px; top: -50px; border-radius: 50%; background: var(--violet-soft); opacity: .7; }
+.cloudPortalCard > span { width: 48px; height: 48px; display: grid; place-items: center; position: relative; z-index: 1; border-radius: 16px; background: var(--surface-soft); font-size: 1.45rem; }
+.cloudPortalCard h2 { margin: 14px 0 6px; font-size: 1.28rem; }
+.cloudPortalCard p { min-height: 58px; margin: 0 0 16px; color: var(--muted); font-size: .72rem; line-height: 1.5; }
+.cloudPortalCard .button { width: 100%; text-decoration: none; }
+.cloudPortalCard--child { border-color: color-mix(in srgb, var(--violet) 35%, var(--border)); }
+.localModeNote { display: grid; gap: 4px; margin-top: 15px; padding: 16px; border: 1px dashed var(--border); border-radius: 18px; color: var(--muted); background: var(--surface-soft); font-size: .65rem; line-height: 1.45; }
+.localModeNote strong { color: var(--text); font-size: .7rem; }
+.localModeNote a { min-height: 44px; display: inline-flex; align-items: center; color: var(--violet-dark); font-weight: 800; }
+.cloudAuthCard { text-align: left; }
+.cloudAuthCard > .eyebrow, .cloudAuthCard > h1, .cloudAuthCard > p { text-align: center; }
+.pinCard.cloudAuthCard form label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+.cloudAuthCard > .button, .cloudAuthCard > a.button { width: 100%; margin-top: 9px; text-decoration: none; }
+.cloudSyncStatus { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 6px; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 14px; color: var(--muted); background: color-mix(in srgb, var(--surface) 94%, transparent); font-size: .62rem; line-height: 1.35; }
+.cloudSyncStatus small { grid-column: 2; color: var(--red); overflow-wrap: anywhere; }
+.cloudSyncStatus--synced { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, var(--border)); }
+.cloudSyncStatus--offline { color: var(--orange); }
+.cloudSyncStatus--error { color: var(--red); }
+.cloudStatusDock { position: fixed; z-index: 45; top: max(4px, env(safe-area-inset-top)); left: 50%; width: min(calc(100% - 24px), 520px); pointer-events: none; transform: translateX(-50%); }
+.cloudStatusDock .cloudSyncStatus { margin: 0; box-shadow: var(--shadow-small); backdrop-filter: blur(16px); }
+.cloudLinkCard p, .parentSection > p { font-size: .67rem; line-height: 1.5; }
+.cloudLinkCard input, .cloudDeleteConfirm input, .parentSection > div > label > input { width: 100%; min-height: 46px; margin: 7px 0; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; color: var(--text); background: var(--surface-soft); font-size: .68rem; }
+.cloudLinkCard .button, .cloudDeleteConfirm + .button { width: 100%; }
+.parentSection img { display: block; width: min(256px, 100%); height: auto; margin: 14px auto; border: 8px solid #fff; border-radius: 18px; }
+.cloudInviteActions, .cloudConfirmRow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cloudInviteActions .button { text-decoration: none; }
+.cloudDeleteConfirm { display: grid; gap: 4px; margin-top: 12px; color: var(--text); font-size: .64rem; }
+.cloudDeleteConfirm strong { overflow-wrap: anywhere; }
+.cloudControlError { margin: 12px 4px; }
+.cloudPinRecovery { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); text-align: center; }
+.cloudPinRecovery > button { min-height: 44px; border: 0; color: var(--violet-dark); background: transparent; font-size: .68rem; font-weight: 800; cursor: pointer; }
+.cloudPinRecovery .settingsForm { margin-top: 8px; text-align: left; }
+.cloudPinRecovery .settingsForm > p { margin: 0; color: var(--muted); font-size: .63rem; line-height: 1.45; }
+.pinCard .cloudPinRecovery form label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+.bottomNav--child { grid-template-columns: repeat(3, 1fr); }
+
 /* Navigation, feedback and dialogs */
 .updatePrompt { position: fixed; z-index: 110; left: 50%; top: calc(12px + env(safe-area-inset-top)); width: calc(100% - 28px); max-width: 520px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid color-mix(in srgb, var(--violet) 32%, var(--border)); border-radius: 18px; color: var(--text); background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: 0 17px 40px rgba(13,18,49,.26); backdrop-filter: blur(18px); transform: translateX(-50%); animation: toastIn .25s ease-out; }
 .updatePrompt__copy { min-width: 0; }
