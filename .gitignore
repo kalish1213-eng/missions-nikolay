@@ -3,6 +3,7 @@ dist/
 coverage/
 .nyc_output/
 .vite/
+supabase/.temp/
 *.tsbuildinfo
 
 test-results/
