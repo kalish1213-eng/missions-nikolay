@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { randomBytes, randomInt, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright-core'
 
@@ -88,7 +88,16 @@ function redact(value) {
 }
 
 function message(error) {
-  return redact(error instanceof Error ? error.message : error)
+  if (error instanceof Error) return redact(error.message)
+  if (typeof error === 'object' && error !== null) {
+    const details = Object.fromEntries(
+      ['code', 'message', 'details', 'hint']
+        .filter((key) => key in error)
+        .map((key) => [key, error[key]]),
+    )
+    return redact(JSON.stringify(Object.keys(details).length ? details : { error: 'unknown object' }))
+  }
+  return redact(error)
 }
 
 function sleep(milliseconds) {
@@ -249,6 +258,11 @@ async function run() {
   let browser = null
   let parentPage = null
   let childPage = null
+  let replayInviteUserId = null
+  let expiredInviteUserId = null
+  let secondaryParentUserId = null
+  let secondaryFamilyId = null
+  let secondaryEmail = null
   let primaryError = null
   const browserErrors = []
   const cleanupErrors = []
@@ -256,10 +270,10 @@ async function run() {
   const allowedOrigins = new Set([baseUrl.origin, supabaseUrl.origin])
 
   try {
-    console.log('1/9 Проверяем опубликованную PWA-оболочку')
+    console.log('1/10 Проверяем опубликованную PWA-оболочку')
     await checkPublicShell(baseUrl)
 
-    console.log('2/9 Создаём временную подтверждённую родительскую сессию')
+    console.log('2/10 Создаём временную подтверждённую родительскую сессию')
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email,
       password,
@@ -272,7 +286,7 @@ async function run() {
     if (signInError || !signedIn.session) throw new Error(`Не удалось открыть родительскую сессию: ${message(signInError)}`)
     parentSession = signedIn.session
 
-    console.log('3/9 Открываем независимые родительский и детский профили браузера')
+    console.log('3/10 Открываем независимые родительский и детский профили браузера')
     browser = await chromium.launch({
       executablePath: browserExecutable(),
       headless: true,
@@ -307,7 +321,7 @@ async function run() {
       }
     }, { key: AUTH_STORAGE_KEY, value: JSON.stringify(parentSession) })
 
-    console.log('4/9 Создаём семью и проверяем локальный PIN')
+    console.log('4/10 Создаём семью и проверяем локальный PIN')
     await parentPage.goto(route(baseUrl, '/parent'), { waitUntil: 'domcontentloaded' })
     await visible(parentPage.getByRole('heading', { name: 'Создать семейное пространство', exact: true }), 'Форма создания семьи')
     expectedBrowserErrors.parentMissingMembership = false
@@ -331,7 +345,7 @@ async function run() {
     familyId = parentSnapshot.meta.familyId
     familyName = parentSnapshot.meta.familyName
 
-    console.log('5/9 Создаём и принимаем одноразовое приглашение')
+    console.log('5/10 Создаём и принимаем одноразовое приглашение')
     await parentPage.getByRole('button', { name: 'Создать приглашение', exact: true }).click()
     const inviteInput = await visible(parentPage.getByLabel('Ссылка приглашения', { exact: true }), 'Одноразовая ссылка')
     const inviteUrl = await inviteInput.inputValue()
@@ -355,7 +369,7 @@ async function run() {
     if (setChildSessionError) throw new Error(`Не удалось проверить детскую сессию: ${message(setChildSessionError)}`)
     await childPage.waitForTimeout(1_000)
 
-    console.log('6/9 Проверяем отправку, realtime и запрет родительского RPC ребёнку')
+    console.log('6/10 Проверяем отправку, realtime и запрет родительского RPC ребёнку')
     await parentPage.bringToFront()
     await ensureParentDashboard(parentPage, pin)
     await parentPage.waitForTimeout(500)
@@ -375,7 +389,7 @@ async function run() {
     assert.equal(denial.error.code, '42501', `Ожидался RLS/RPC denial 42501, получен ${denial.error.code ?? 'unknown'}`)
     await approveParentTask(parentPage, childPage, 'Заправить кровать', pin)
 
-    console.log('7/9 Подтверждаем обязательный минимум и запускаем таймер')
+    console.log('7/10 Подтверждаем обязательный минимум и запускаем таймер')
     for (const title of REQUIRED_TASKS.filter((task) => task !== 'Заправить кровать')) {
       await submitChildTask(childPage, title)
     }
@@ -432,7 +446,7 @@ async function run() {
       (snapshot) => snapshot?.activeTimer === null && snapshot?.today?.usedSeconds >= 1,
     )
 
-    console.log('8/9 Проверяем сохранность после перезагрузки обоих профилей')
+    console.log('8/10 Проверяем сохранность после перезагрузки обоих профилей')
     await childPage.reload({ waitUntil: 'domcontentloaded' })
     await visible(taskCard(childPage, 'Заправить кровать').getByText('Подтверждено', { exact: true }), 'Сохранённый детский прогресс')
     assert.equal(new URL(childPage.url()).hash, '#/child', 'Детский маршрут изменился после перезагрузки')
@@ -446,9 +460,118 @@ async function run() {
       await visible(parentPage.locator('.approvedList article').filter({ hasText: title }), `Подтверждённая миссия «${title}» после reload`)
     }
 
-    console.log('9/9 Проверяем отсутствие ошибок браузера')
+    console.log('9/10 Проверяем отсутствие ошибок браузера')
     await parentPage.waitForTimeout(500)
     if (browserErrors.length) throw new Error(`Браузер зафиксировал ошибки:\n${browserErrors.map((item) => `- ${item}`).join('\n')}`)
+
+    console.log('10/10 Проверяем одноразовость, истечение приглашений и межсемейную RLS-изоляцию')
+    const usedInviteToken = new URL(inviteUrl).hash.split('/').at(-1)
+    assert.match(usedInviteToken, /^[0-9a-f]{64}$/u, 'Не удалось извлечь использованный invite token')
+    const replayApi = createClient(supabaseUrl.toString(), env.QA_SUPABASE_PUBLISHABLE_KEY, { auth: commonAuth })
+    const replayAuth = await replayApi.auth.signInAnonymously()
+    if (replayAuth.error || !replayAuth.data.user) throw new Error(`Не удалось создать сессию проверки повторного invite: ${message(replayAuth.error)}`)
+    replayInviteUserId = replayAuth.data.user.id
+    const replayClaim = await replayApi.rpc('claim_child_invite', {
+      p_token: usedInviteToken,
+      p_display_name: 'QA replay device',
+      p_idempotency_key: randomUUID(),
+    })
+    assert.ok(replayClaim.error, 'Использованное приглашение неожиданно принято второй сессией')
+    assert.equal(replayClaim.error.code, '22023', `Повторный invite должен отклоняться с 22023, получен ${replayClaim.error.code ?? 'unknown'}`)
+
+    const expiringInvite = await parentApi.rpc('create_child_invite', {
+      p_expires_minutes: 5,
+      p_idempotency_key: randomUUID(),
+    })
+    if (expiringInvite.error) throw new Error(`Не удалось создать invite для проверки срока: ${message(expiringInvite.error)}`)
+    const expiringToken = expiringInvite.data?.token
+    assert.match(expiringToken, /^[0-9a-f]{64}$/u, 'Invite для проверки срока имеет неожиданный формат')
+    const expectedDigest = createHash('sha256').update(expiringToken, 'utf8').digest('hex')
+    const activeInvite = await admin
+      .from('family_invites')
+      .select('id, token_digest, created_at')
+      .eq('family_id', familyId)
+      .is('used_at', null)
+      .is('revoked_at', null)
+      .single()
+    if (activeInvite.error || !activeInvite.data) throw new Error(`Не найден активный invite по digest: ${message(activeInvite.error)}`)
+    const storedDigest = String(activeInvite.data.token_digest).replace(/^\\x/iu, '').toLowerCase()
+    assert.equal(storedDigest, expectedDigest, 'Digest активного invite не совпадает с выданным одноразовым token')
+    const expiredAt = new Date(Date.now() - 60_000).toISOString()
+    const expiredCreatedAt = new Date(Date.now() - 120_000).toISOString()
+    const expireUpdate = await admin
+      .from('family_invites')
+      .update({ created_at: expiredCreatedAt, expires_at: expiredAt })
+      .eq('id', activeInvite.data.id)
+      .is('used_at', null)
+      .is('revoked_at', null)
+      .select('id')
+      .single()
+    if (expireUpdate.error || !expireUpdate.data) throw new Error(`Не удалось истечь invite по digest: ${message(expireUpdate.error)}`)
+
+    const expiredApi = createClient(supabaseUrl.toString(), env.QA_SUPABASE_PUBLISHABLE_KEY, { auth: commonAuth })
+    const expiredAuth = await expiredApi.auth.signInAnonymously()
+    if (expiredAuth.error || !expiredAuth.data.user) throw new Error(`Не удалось создать сессию проверки истёкшего invite: ${message(expiredAuth.error)}`)
+    expiredInviteUserId = expiredAuth.data.user.id
+    const expiredClaim = await expiredApi.rpc('claim_child_invite', {
+      p_token: expiringToken,
+      p_display_name: 'QA expired device',
+      p_idempotency_key: randomUUID(),
+    })
+    assert.ok(expiredClaim.error, 'Истёкшее приглашение неожиданно принято')
+    assert.equal(expiredClaim.error.code, '22023', `Истёкший invite должен отклоняться с 22023, получен ${expiredClaim.error.code ?? 'unknown'}`)
+
+    secondaryEmail = `qa-missions-isolation-${suffix}@example.com`
+    const secondaryPassword = `Qb2!${randomBytes(24).toString('base64url')}`
+    const secondaryCreated = await admin.auth.admin.createUser({
+      email: secondaryEmail,
+      password: secondaryPassword,
+      email_confirm: true,
+      user_metadata: { purpose: 'missions-nikolay-production-qa-isolation' },
+    })
+    if (secondaryCreated.error || !secondaryCreated.data.user) throw new Error(`Не удалось создать второго временного родителя: ${message(secondaryCreated.error)}`)
+    secondaryParentUserId = secondaryCreated.data.user.id
+    const secondaryApi = createClient(supabaseUrl.toString(), env.QA_SUPABASE_PUBLISHABLE_KEY, { auth: commonAuth })
+    const secondarySignIn = await secondaryApi.auth.signInWithPassword({ email: secondaryEmail, password: secondaryPassword })
+    if (secondarySignIn.error || !secondarySignIn.data.session) throw new Error(`Не удалось открыть вторую родительскую сессию: ${message(secondarySignIn.error)}`)
+    const secondarySalt = randomBytes(16).toString('hex')
+    const secondaryHash = createHash('sha256').update(`qa-isolation:${secondarySalt}`).digest('hex')
+    const secondaryFamily = await secondaryApi.rpc('create_family', {
+      p_child_name: `Изоляция QA ${suffix.slice(-8)}`,
+      p_pin_hash: secondaryHash,
+      p_pin_salt: secondarySalt,
+    })
+    if (secondaryFamily.error) throw new Error(`Не удалось создать вторую временную семью: ${message(secondaryFamily.error)}`)
+    secondaryFamilyId = secondaryFamily.data?.meta?.familyId
+    assert.ok(secondaryFamilyId, 'Вторая семья не вернула familyId')
+    assert.notEqual(secondaryFamilyId, familyId, 'Два родителя неожиданно получили одну семью')
+
+    const [primarySecuritySnapshot, secondarySecuritySnapshot] = await Promise.all([
+      parentApi.rpc('get_family_snapshot', {}),
+      secondaryApi.rpc('get_family_snapshot', {}),
+    ])
+    if (primarySecuritySnapshot.error) throw new Error(`Первый security snapshot недоступен: ${message(primarySecuritySnapshot.error)}`)
+    if (secondarySecuritySnapshot.error) throw new Error(`Второй security snapshot недоступен: ${message(secondarySecuritySnapshot.error)}`)
+    assert.equal(primarySecuritySnapshot.data?.meta?.familyId, familyId, 'Первый родитель получил snapshot чужой семьи')
+    assert.equal(secondarySecuritySnapshot.data?.meta?.familyId, secondaryFamilyId, 'Второй родитель получил snapshot чужой семьи')
+
+    const [primaryOwnFamily, primaryForeignFamily, primaryForeignTasks, secondaryOwnFamily, secondaryOwnTasks, secondaryForeignFamily] = await Promise.all([
+      parentApi.from('families').select('id').eq('id', familyId),
+      parentApi.from('families').select('id').eq('id', secondaryFamilyId),
+      parentApi.from('tasks').select('id').eq('family_id', secondaryFamilyId),
+      secondaryApi.from('families').select('id').eq('id', secondaryFamilyId),
+      secondaryApi.from('tasks').select('id').eq('family_id', secondaryFamilyId),
+      secondaryApi.from('families').select('id').eq('id', familyId),
+    ])
+    for (const result of [primaryOwnFamily, primaryForeignFamily, primaryForeignTasks, secondaryOwnFamily, secondaryOwnTasks, secondaryForeignFamily]) {
+      if (result.error) throw new Error(`Прямой RLS SELECT завершился ошибкой: ${message(result.error)}`)
+    }
+    assert.deepEqual(primaryOwnFamily.data?.map((row) => row.id), [familyId], 'Первый родитель не видит собственную семью через RLS SELECT')
+    assert.equal(primaryForeignFamily.data?.length, 0, 'Первый родитель видит строку второй семьи через RLS SELECT')
+    assert.equal(primaryForeignTasks.data?.length, 0, 'Первый родитель видит задачи второй семьи через RLS SELECT')
+    assert.deepEqual(secondaryOwnFamily.data?.map((row) => row.id), [secondaryFamilyId], 'Второй родитель не видит собственную семью через RLS SELECT')
+    assert.ok(secondaryOwnTasks.data?.length > 0, 'Второй родитель не видит собственные задачи через RLS SELECT')
+    assert.equal(secondaryForeignFamily.data?.length, 0, 'Второй родитель видит строку первой семьи через RLS SELECT')
   } catch (error) {
     primaryError = error
   } finally {
@@ -479,6 +602,19 @@ async function run() {
         if (!membership.error && membership.data?.family_id) familyId = membership.data.family_id
       } catch {
         // No active membership means family creation did not complete.
+      }
+    }
+    if (!secondaryFamilyId && secondaryParentUserId) {
+      try {
+        const membership = await admin
+          .from('family_members')
+          .select('family_id')
+          .eq('user_id', secondaryParentUserId)
+          .is('revoked_at', null)
+          .maybeSingle()
+        if (!membership.error && membership.data?.family_id) secondaryFamilyId = membership.data.family_id
+      } catch {
+        // The second family may not have completed creation.
       }
     }
     if (!childUserId && familyId) {
@@ -517,8 +653,26 @@ async function run() {
       }
     }
 
-    for (const [label, userId] of [['ребёнка', childUserId], ['родителя', parentUserId]]) {
+    if (secondaryFamilyId) {
+      try {
+        const result = await admin.from('families').delete().eq('id', secondaryFamilyId)
+        if (result.error) throw result.error
+      } catch (error) {
+        cleanupErrors.push(`удаление второй временной семьи: ${message(error)}`)
+      }
+    }
+
+    const seenUserIds = new Set()
+    for (const [label, userId] of [
+      ['ребёнка', childUserId],
+      ['проверки повторного invite', replayInviteUserId],
+      ['проверки истёкшего invite', expiredInviteUserId],
+      ['второго родителя', secondaryParentUserId],
+      ['родителя', parentUserId],
+    ]) {
       if (!userId) continue
+      if (seenUserIds.has(userId)) continue
+      seenUserIds.add(userId)
       try {
         const result = await admin.auth.admin.deleteUser(userId)
         if (result.error) throw result.error
@@ -535,7 +689,7 @@ async function run() {
     if (cleanupErrors.length) parts.push(`Ошибки очистки:\n${cleanupErrors.map((item) => `- ${item}`).join('\n')}`)
     throw new Error(parts.join('\n'))
   }
-  console.log('PASS: production cloud E2E завершён; временные данные удалены')
+  console.log('PASS: production cloud E2E и security checks завершены; временные данные удалены')
 }
 
 run().catch((error) => {
