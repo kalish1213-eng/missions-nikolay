@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { verifyPin } from '../lib/security'
+import { formatTimer, getTimerSnapshot } from '../lib/timer'
 import type { AppState, Task, ThemePreference } from '../types'
 import { Icon } from '../components/Icon'
 import { Modal } from '../components/Modal'
@@ -16,8 +17,9 @@ interface ParentActions {
   changePin: (pin: string) => Promise<void>
 }
 
-export function ParentScreen({ state, unlocked, onUnlock, onLock, actions, cloudTools, pinRecovery }: {
+export function ParentScreen({ state, now, unlocked, onUnlock, onLock, actions, cloudTools, pinRecovery }: {
   state: AppState
+  now: number
   unlocked: boolean
   onUnlock: () => void
   onLock: () => void
@@ -26,7 +28,7 @@ export function ParentScreen({ state, unlocked, onUnlock, onLock, actions, cloud
   pinRecovery?: ReactNode
 }) {
   if (!unlocked) return <PinGate pinHash={state.settings.pinHash} pinSalt={state.settings.pinSalt} onUnlock={onUnlock} recovery={pinRecovery} />
-  return <ParentDashboard state={state} actions={actions} onLock={onLock} cloudTools={cloudTools} />
+  return <ParentDashboard state={state} now={now} actions={actions} onLock={onLock} cloudTools={cloudTools} />
 }
 
 function PinGate({ pinHash, pinSalt, onUnlock, recovery }: { pinHash: string; pinSalt: string; onUnlock: () => void; recovery?: ReactNode }) {
@@ -97,7 +99,7 @@ function formatSubmittedAt(value?: number): string {
   return value ? `Отправлено в ${submittedTime.format(value)}` : 'Время отправки не записано'
 }
 
-function ParentDashboard({ state, actions, onLock, cloudTools }: { state: AppState; actions: ParentActions; onLock: () => void; cloudTools?: ReactNode }) {
+function ParentDashboard({ state, now, actions, onLock, cloudTools }: { state: AppState; now: number; actions: ParentActions; onLock: () => void; cloudTools?: ReactNode }) {
   const pending = state.tasks.filter((task) => state.today.taskStates[task.id]?.status === 'pending')
   const approved = state.tasks.filter((task) => state.today.taskStates[task.id]?.status === 'approved')
   const [xpRate, setXpRate] = useState(String(state.settings.xpToMinutes))
@@ -109,6 +111,7 @@ function ParentDashboard({ state, actions, onLock, cloudTools }: { state: AppSta
   const [newPin, setNewPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [pinError, setPinError] = useState('')
+  const activeTimer = state.activeTimer ? getTimerSnapshot(state.activeTimer, now) : null
   const [resetOpen, setResetOpen] = useState(false)
   const [undoTask, setUndoTask] = useState<Task | null>(null)
   const operations = state.transactions
@@ -160,6 +163,21 @@ function ParentDashboard({ state, actions, onLock, cloudTools }: { state: AppSta
           <Icon name="shield" />
           <div><strong>Замените стартовый PIN</strong><p>Так Николай не сможет случайно открыть настройки. Новый код можно задать ниже.</p></div>
           <a href="#pin-settings">Изменить</a>
+        </section>
+      )}
+
+      {state.activeTimer && activeTimer && (
+        <section className="parentSection parentTimerStatus" aria-labelledby="active-timer-title" aria-live="polite">
+          <div className="sectionTitleRow">
+            <div><span className="eyebrow">Синхронизация устройств</span><h2 id="active-timer-title">Активный таймер</h2></div>
+            <span className="status status--pending"><span className="status__pulse" />идёт</span>
+          </div>
+          <div className="parentTimerStatus__time" role="timer" aria-label={`У ребёнка осталось ${formatTimer(activeTimer.remainingSeconds)}`}>
+            <Icon name="timer" />
+            <strong>{formatTimer(activeTimer.remainingSeconds)}</strong>
+            <span>осталось у Николая</span>
+          </div>
+          <p>Запланировано {Math.ceil(state.activeTimer.durationSeconds / 60)} мин · прошло {formatTimer(activeTimer.elapsedSeconds)}. После остановки история и использованное время обновятся автоматически.</p>
         </section>
       )}
 

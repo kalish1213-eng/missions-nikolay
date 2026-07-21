@@ -153,6 +153,7 @@ function CloudPortal({ route }: { route: Extract<CloudRoute, { kind: 'parent' | 
           <>
             <ParentScreen
               state={state}
+              now={now}
               unlocked={parentUnlocked}
               onUnlock={() => setParentUnlocked(true)}
               onLock={() => setParentUnlocked(false)}
@@ -292,7 +293,7 @@ function LocalMissionApp({ pwaUpdateAction, setPwaUpdateAction }: { pwaUpdateAct
       {tab === 'today' && <TodayScreen state={state} now={now} onSubmit={actions.submitTask} onPushUps={actions.setPushUps} onOpenTimer={() => changeTab('timer')} />}
       {tab === 'timer' && <TimerScreen state={state} now={now} onStart={actions.startTimer} onStop={actions.stopTimer} onGoToday={() => changeTab('today')} />}
       {tab === 'progress' && <ProgressScreen state={state} now={now} />}
-      {tab === 'parent' && <ParentScreen state={state} unlocked={parentUnlocked} onUnlock={() => setParentUnlocked(true)} onLock={() => setParentUnlocked(false)} actions={actions} />}
+      {tab === 'parent' && <ParentScreen state={state} now={now} unlocked={parentUnlocked} onUnlock={() => setParentUnlocked(true)} onLock={() => setParentUnlocked(false)} actions={actions} />}
       <BottomNavigation navigation={localNavigation} active={tab} activeTimer={Boolean(state.activeTimer)} onChange={changeTab} />
       <FeedbackToast feedback={feedback} onClose={clearFeedback} />
       {!state.onboardingSeen && (

@@ -10,7 +10,8 @@
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "qa:production": "node qa/production-cloud.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",

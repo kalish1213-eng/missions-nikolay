@@ -311,6 +311,12 @@ svg { width: 24px; height: 24px; flex: 0 0 auto; }
 .approvedList button { min-height: 44px; border: 0; color: var(--red); background: transparent; font-size: .61rem; font-weight: 800; cursor: pointer; }
 details { border-top: 1px solid var(--border); }
 .parentSection > details:first-child, .settingsStack > details:first-of-type { border-top: 0; }
+.parentTimerStatus { border-color: color-mix(in srgb, var(--violet) 34%, var(--border)); background: linear-gradient(145deg, color-mix(in srgb, var(--violet-soft) 72%, var(--surface)), var(--surface)); }
+.parentTimerStatus__time { display: grid; grid-template-columns: 38px auto 1fr; align-items: center; gap: 10px; margin: 13px 0 8px; }
+.parentTimerStatus__time > svg { width: 28px; height: 28px; padding: 7px; border-radius: 12px; color: #fff; background: var(--violet); box-sizing: content-box; }
+.parentTimerStatus__time strong { font-size: 1.45rem; font-variant-numeric: tabular-nums; }
+.parentTimerStatus__time span { color: var(--muted); font-size: .66rem; font-weight: 700; }
+.parentTimerStatus > p { margin: 0; color: var(--muted); font-size: .65rem; line-height: 1.5; }
 summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 9px; cursor: pointer; list-style: none; font-size: .78rem; font-weight: 800; }
 summary::-webkit-details-marker { display: none; }
 summary::after { content: '⌄'; color: var(--muted); font-size: 1rem; transition: transform .2s ease; }
